@@ -6,7 +6,7 @@ use async_openai::{
     },
     Client,
 };
-use base64;
+use base64::{engine::general_purpose, Engine as _};
 use clap::Parser;
 use colog;
 use dotenvy::dotenv;
@@ -133,7 +133,7 @@ async fn get_document_intelligence(
     }
 
     let mut buffer = Cursor::new(Vec::new());
-    image.write_to(&mut buffer, ImageFormat::Png);
+    let _ = image.write_to(&mut buffer, ImageFormat::Png);
 
     let client = Client::new();
     let request = CreateChatCompletionRequestArgs::default()
@@ -151,7 +151,7 @@ async fn get_document_intelligence(
                         ImageUrlArgs::default()
                             .url(format!(
                                 "data:image/png;base64,{}",
-                                base64::encode(buffer.into_inner())
+                                general_purpose::STANDARD.encode(buffer.into_inner())
                             ))
                             .detail(ImageDetail::High)
                             .build()?,
