@@ -3,6 +3,8 @@ name = "papersmith"
 description = "AI-Powered PDF Renamer in Rust."
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+authors = ["Ben Letchford <me@benletchford.com>"]
 
 [dependencies]
 anyhow = "1.0.98"
