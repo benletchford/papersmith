@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/benletchford/papersmith/compare/v0.1.1...v0.2.0) (2025-05-06)
+
+
+### Features
+
+* add report to prompt ([1140450](https://github.com/benletchford/papersmith/commit/1140450d1d3585b83f999df921adca50cdcc3ba8))
+
 ## [0.1.1](https://github.com/benletchford/papersmith/compare/v0.1.0...v0.1.1) (2025-05-06)
 
 
