@@ -104,8 +104,6 @@ struct Args {
     glob_pattern: String,
     #[arg(short, long, default_value = "gpt-4o")]
     model: String,
-    #[arg(short, long, default_value = "3")]
-    n_pages: usize,
     #[arg(short, long, action)]
     dry_run: bool,
 }
@@ -173,7 +171,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         info!("Processing {}", current_filename);
 
         let document_intelligence =
-            get_document_intelligence(&pdf_path, args.model.as_str(), args.n_pages).await?;
+            get_document_intelligence(&pdf_path, args.model.as_str()).await?;
 
         if let Some(name_part) = document_intelligence.filename {
             let filename_suggestion = format!("{}.pdf", name_part);
@@ -203,7 +201,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 async fn get_document_intelligence(
     pdf_path: &str,
     model: &str,
-    _n_pages: usize, // n_pages is not used if sending whole PDF
 ) -> Result<DocumentIntelligence, Box<dyn Error>> {
     let pdf_data =
         fs::read(pdf_path).map_err(|e| format!("Failed to read PDF file {}: {}", pdf_path, e))?;
