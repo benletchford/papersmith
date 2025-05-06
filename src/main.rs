@@ -12,8 +12,8 @@ use std::path::{Path, PathBuf};
 const PROMPT: &str = r#"
 1). When is the document dated (if any)?
 2). What is the document? Eg, invoice, receipt, etc.
-4). What should the document title be (if any)?
-5). What would be a good filename for this document, use the format {YYYYMMDD}-{title}-{category}.
+3). What should the document title be (if any)?
+4). What would be a good filename for this document, use the format {YYYYMMDD}-{title}-{category}.
 
 Output your response as JSON, eg:
 {
