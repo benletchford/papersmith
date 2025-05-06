@@ -5,6 +5,9 @@ version = "0.1.1"
 edition = "2021"
 license = "MIT"
 authors = ["Ben Letchford <me@benletchford.com>"]
+documentation = "https://github.com/benletchford/papersmith"
+homepage = "https://github.com/benletchford/papersmith"
+repository = "https://github.com/benletchford/papersmith"
 
 [dependencies]
 anyhow = "1.0.98"
