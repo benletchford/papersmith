@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/benletchford/papersmith/compare/v0.1.0...v0.1.1) (2025-05-06)
+
+
+### Bug Fixes
+
+* adjusted prompt to be more correct ([cdf731e](https://github.com/benletchford/papersmith/commit/cdf731e60548df9bde9fba87e4ab9c1aa025ab54))
+
 ## 0.1.0 (2025-05-06)
 
 
