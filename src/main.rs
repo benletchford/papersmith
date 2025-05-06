@@ -1,6 +1,5 @@
 use base64::{engine::general_purpose, Engine as _};
 use clap::Parser;
-use dotenvy::dotenv;
 use glob::glob;
 use log::{debug, error, info};
 use regex::Regex;
@@ -113,7 +112,6 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    dotenv().ok();
     colog::init();
     let args = Args::parse();
 
@@ -153,7 +151,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         // If it starts with 8 digits and ends with .pdf, skip it
         if filename_regex.is_match(current_filename) {
-            debug!("Skipping {}", current_filename);
+            info!("Skipping {}", current_filename);
             continue;
         }
 
