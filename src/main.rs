@@ -1,22 +1,13 @@
-use async_openai::{
-    types::{
-        ChatCompletionRequestMessageContentPartImageArgs,
-        ChatCompletionRequestMessageContentPartTextArgs, ChatCompletionRequestUserMessageArgs,
-        CreateChatCompletionRequestArgs, ImageDetail, ImageUrlArgs,
-    },
-    Client,
-};
 use base64::{engine::general_purpose, Engine as _};
 use clap::Parser;
 use dotenvy::dotenv;
 use glob::glob;
-use image::{DynamicImage, GenericImage, ImageFormat};
-use log::{debug, info};
-use pdf2image::{RenderOptionsBuilder, DPI, PDF};
+use log::{debug, error, info};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
+use std::env;
 use std::error::Error;
 use std::fs;
-use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
 const PROMPT: &str = r#"
@@ -40,12 +31,79 @@ struct DocumentIntelligence {
     filename: Option<String>,
 }
 
+#[derive(Serialize, Debug)]
+struct InputFilePart<'a> {
+    #[serde(rename = "type")]
+    type_field: &'static str,
+    filename: &'a str,
+    file_data: String, // Will be "data:application/pdf;base64,..."
+}
+
+#[derive(Serialize, Debug)]
+struct InputTextPart<'a> {
+    #[serde(rename = "type")]
+    type_field: &'static str,
+    text: &'a str,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(untagged)] // To allow either InputFilePart or InputTextPart
+enum ContentPart<'a> {
+    File(InputFilePart<'a>),
+    Text(InputTextPart<'a>),
+}
+
+#[derive(Serialize, Debug)]
+struct InputItem<'a> {
+    role: &'static str,
+    content: Vec<ContentPart<'a>>,
+}
+
+#[derive(Serialize, Debug)]
+struct CustomApiRequest<'a> {
+    model: &'a str,
+    input: Vec<InputItem<'a>>,
+    // Add other common parameters if needed, e.g., max_tokens, temperature
+    // For simplicity, starting with model and input.
+    // max_tokens: Option<u32>,
+    // temperature: Option<f32>,
+}
+
+#[derive(Deserialize, Debug)]
+struct CustomApiResponse {
+    output: Option<Vec<OutputItem>>,
+}
+
+#[derive(Deserialize, Debug)]
+struct OutputItem {
+    content: Option<Vec<OutputContentPart>>,
+}
+
+#[derive(Deserialize, Debug)]
+struct OutputContentPart {
+    text: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+struct OpenAiErrorResponseDetail {
+    message: String,
+    #[serde(rename = "type")]
+    error_type: String,
+    param: Option<String>,
+    code: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+struct OpenAiErrorResponse {
+    error: OpenAiErrorResponseDetail,
+}
+
 #[derive(Parser, Debug)]
 #[command(version, about)]
 struct Args {
     #[arg(short, long, default_value = "")]
     glob_pattern: String,
-    #[arg(short, long, default_value = "gpt-4o-mini")]
+    #[arg(short, long, default_value = "gpt-4o")]
     model: String,
     #[arg(short, long, default_value = "3")]
     n_pages: usize,
@@ -147,90 +205,140 @@ async fn main() -> Result<(), Box<dyn Error>> {
 async fn get_document_intelligence(
     pdf_path: &str,
     model: &str,
-    n_pages: usize,
+    _n_pages: usize, // n_pages is not used if sending whole PDF
 ) -> Result<DocumentIntelligence, Box<dyn Error>> {
-    let pdf = PDF::from_file(pdf_path)?;
+    let pdf_data =
+        fs::read(pdf_path).map_err(|e| format!("Failed to read PDF file {}: {}", pdf_path, e))?;
 
-    let render_options = RenderOptionsBuilder::default()
-        .greyscale(true)
-        .resolution(DPI::Uniform(100))
-        .build()?;
-
-    // Ensure n_pages, if usize, doesn't exceed u32 bounds if that's an internal requirement.
-    let effective_n_pages = std::cmp::min(n_pages, u32::MAX as usize) as u32;
-    let pages_to_render = pdf2image::Pages::Range(1..=effective_n_pages);
-    let pages_vec = pdf.render(pages_to_render, render_options)?;
-
-    if pages_vec.is_empty() {
-        return Err(format!("No pages could be rendered from PDF: {}. Check if the PDF is valid or n_pages is too small.", pdf_path).into());
+    if pdf_data.is_empty() {
+        return Err(format!("PDF file {} is empty.", pdf_path).into());
     }
 
-    // Stitch the images together
-    let mut total_height: u32 = 0;
-    let mut max_width: u32 = 0;
-    for page in &pages_vec {
-        total_height += page.height();
-        max_width = max_width.max(page.width());
+    let base64_pdf = general_purpose::STANDARD.encode(&pdf_data);
+    let file_data_uri = format!("data:application/pdf;base64,{}", base64_pdf);
+
+    let pdf_filename = Path::new(pdf_path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("document.pdf");
+
+    // Retrieve API key from environment
+    let api_key = env::var("PAPERSMITH_OPENAI_API_KEY")
+        .map_err(|_| "PAPERSMITH_OPENAI_API_KEY environment variable not set")?;
+
+    let http_client = reqwest::Client::new();
+
+    let request_payload = CustomApiRequest {
+        model,
+        input: vec![InputItem {
+            role: "user",
+            content: vec![
+                ContentPart::File(InputFilePart {
+                    type_field: "input_file",
+                    filename: pdf_filename,
+                    file_data: file_data_uri,
+                }),
+                ContentPart::Text(InputTextPart {
+                    type_field: "input_text",
+                    text: PROMPT,
+                }),
+            ],
+        }],
+    };
+
+    const API_PATH: &str = "/v1/responses"; // Updated to the correct endpoint
+    let api_url = format!("https://api.openai.com{}", API_PATH);
+
+    info!("Sending custom request to {} with model {}", api_url, model);
+
+    // Convert payload to string for debug logging, handle potential error
+    match serde_json::to_string_pretty(&request_payload) {
+        Ok(payload_str) => debug!("Request payload: {}", payload_str),
+        Err(e) => debug!("Failed to serialize request payload for logging: {}", e),
     }
 
-    if max_width == 0 || total_height == 0 {
-        return Err(format!("Rendered pages for {} result in zero dimension image ({}x{}). PDF might be empty or corrupted.", pdf_path, max_width, total_height).into());
+    let res = http_client
+        .post(&api_url)
+        .bearer_auth(api_key)
+        .json(&request_payload)
+        .send()
+        .await?;
+
+    let response_status = res.status();
+    let response_text = res.text().await?;
+    debug!("Raw API Response Status: {}", response_status);
+    debug!("Raw API Response Body: {}", response_text);
+
+    if !response_status.is_success() {
+        // Try to parse as OpenAI's error structure
+        match serde_json::from_str::<OpenAiErrorResponse>(&response_text) {
+            Ok(err_resp) => {
+                error!(
+                    "OpenAI API Error: Type: {}, Message: {}, Code: {:?}, Param: {:?}",
+                    err_resp.error.error_type,
+                    err_resp.error.message,
+                    err_resp.error.code,
+                    err_resp.error.param
+                );
+                return Err(format!(
+                    "OpenAI API error ({}): {}",
+                    err_resp.error.error_type, err_resp.error.message
+                )
+                .into());
+            }
+            Err(_) => {
+                // Fallback if error parsing fails
+                error!(
+                    "API request failed with status {} and body: {}",
+                    response_status, response_text
+                );
+                return Err(format!(
+                    "API request failed with status {}: {}",
+                    response_status, response_text
+                )
+                .into());
+            }
+        }
     }
 
-    let mut image = DynamicImage::new_rgb8(max_width, total_height);
-    let mut y: u32 = 0;
-    for page_image in pages_vec {
-        image.copy_from(&page_image, 0_u32, y)?;
-        y += page_image.height();
-    }
+    // Assuming success, parse into CustomApiResponse
+    let response: CustomApiResponse = serde_json::from_str(&response_text).map_err(|e| {
+        error!(
+            "Failed to parse successful API response: {}. Body: {}",
+            e,
+            response_text // Log the original String here
+        );
+        format!(
+            "Failed to parse successful API response: {}. Body: {}",
+            e,
+            response_text // Log the original String here
+        )
+    })?;
 
-    let mut buffer = Cursor::new(Vec::new());
-    image.write_to(&mut buffer, ImageFormat::Png)?;
-
-    let client = Client::new();
-    let request = CreateChatCompletionRequestArgs::default()
-        .model(model)
-        .max_tokens(300_u32)
-        .temperature(0.0)
-        .messages([ChatCompletionRequestUserMessageArgs::default()
-            .content(vec![
-                ChatCompletionRequestMessageContentPartTextArgs::default()
-                    .text(PROMPT)
-                    .build()?
-                    .into(),
-                ChatCompletionRequestMessageContentPartImageArgs::default()
-                    .image_url(
-                        ImageUrlArgs::default()
-                            .url(format!(
-                                "data:image/png;base64,{}",
-                                general_purpose::STANDARD.encode(buffer.into_inner())
-                            ))
-                            .detail(ImageDetail::High)
-                            .build()?,
-                    )
-                    .build()?
-                    .into(),
-            ])
-            .build()?
-            .into()])
-        .build()?;
-
-    let response = client.chat().create(request).await?;
-
-    let first_choice = response
-        .choices
-        .first()
-        .ok_or("No choices returned from OpenAI API")?;
-
-    let content_str = first_choice
-        .message
-        .content
+    // Extract the text from the nested structure
+    let content_str = response
+        .output
         .as_ref()
-        .ok_or("No content in OpenAI API response message")?
-        .replace("```json\n", "")
-        .replace("\n```", "");
+        .and_then(|outputs| outputs.first())
+        .and_then(|first_output| first_output.content.as_ref())
+        .and_then(|contents| contents.first())
+        .and_then(|first_content| first_content.text.as_ref())
+        .cloned() // Clone the Option<String> to get String or None
+        .ok_or_else(|| {
+            error!(
+                "Failed to extract text from API response structure. Full response: {}",
+                response_text
+            );
+            "Failed to extract text from API response structure".to_string()
+        })?;
 
-    let repaired_json_str = repair_json::repair(content_str.as_str()).map_err(|e_str| {
+    let repaired_json_str = repair_json::repair(
+        content_str
+            .replace("```json", "")
+            .replace("```", "")
+            .as_str(),
+    )
+    .map_err(|e_str| {
         std::io::Error::new(
             std::io::ErrorKind::Other,
             format!("JSON repair failed for {}: {}", pdf_path, e_str),
