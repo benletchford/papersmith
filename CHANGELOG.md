@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/benletchford/papersmith/compare/v0.2.0...v0.2.1) (2025-05-06)
+
+
+### Bug Fixes
+
+* Remove n_pages argument and functionality ([613d5e0](https://github.com/benletchford/papersmith/commit/613d5e0a45f15e022a594fc894de3ca3d754879c))
+
 ## [0.2.0](https://github.com/benletchford/papersmith/compare/v0.1.1...v0.2.0) (2025-05-06)
 
 
