@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/benletchford/papersmith/compare/v0.3.0...v0.4.0) (2025-05-07)
+
+
+### Features
+
+* add report type in prompt ([70ec944](https://github.com/benletchford/papersmith/commit/70ec944dfb34b855d7b3d110d0cdad6dd7e8bb4d))
+* better debugging output ([58ca616](https://github.com/benletchford/papersmith/commit/58ca616d0e9a390bbaec05c0b88ab8cacfe55e8b))
+
 ## [0.3.0](https://github.com/benletchford/papersmith/compare/v0.2.1...v0.3.0) (2025-05-07)
 
 
