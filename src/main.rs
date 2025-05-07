@@ -241,7 +241,7 @@ async fn get_document_intelligence(
         }],
     };
 
-    const API_PATH: &str = "/v1/responses"; // Updated to the correct endpoint
+    const API_PATH: &str = "/v1/responses";
     let api_url = format!("https://api.openai.com{}", API_PATH);
 
     info!("Sending custom request to {} with model {}", api_url, model);
@@ -265,7 +265,6 @@ async fn get_document_intelligence(
     debug!("Raw API Response Body: {}", response_text);
 
     if !response_status.is_success() {
-        // Try to parse as OpenAI's error structure
         match serde_json::from_str::<OpenAiErrorResponse>(&response_text) {
             Ok(err_resp) => {
                 error!(
