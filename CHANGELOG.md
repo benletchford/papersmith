@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/benletchford/papersmith/compare/v0.2.1...v0.3.0) (2025-05-07)
+
+
+### Features
+
+* adjusted prompt for performance ([3294693](https://github.com/benletchford/papersmith/commit/329469348b1c7c948d956853cfb328c5bc4322dc))
+
+
+### Bug Fixes
+
+* massive prompt bug in production - fixed by changing year to 2021 ([ade0563](https://github.com/benletchford/papersmith/commit/ade056378e7ca2e6d5ae712ba3ecc2c32d8299f4))
+
 ## [0.2.1](https://github.com/benletchford/papersmith/compare/v0.2.0...v0.2.1) (2025-05-06)
 
 
