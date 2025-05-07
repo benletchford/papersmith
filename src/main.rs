@@ -17,9 +17,9 @@ const PROMPT: &str = r#"
 
 Output your response as JSON, eg:
 {
-    "date": "2020-12-24",  // Use the format YYYY-MM-DD
+    "date": "2021-12-24",  // Use the format YYYY-MM-DD
     "category": "invoice"  // Keep the category in lowercase
-    "filename": "20201224-dan-murphys-invoice"  // All lowercase, no spaces. Words separated by hyphens.
+    "filename": "20211224-dan-murphys-invoice"  // All lowercase, no spaces. Words separated by hyphens.
 }
 "#;
 
