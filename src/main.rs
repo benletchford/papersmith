@@ -260,8 +260,8 @@ async fn get_document_intelligence(
 
     let response_status = res.status();
     let response_text = res.text().await?;
-    debug!("Raw API Response Status: {}", response_status);
-    debug!("Raw API Response Body: {}", response_text);
+    debug!("API Response Status: {}", response_status);
+    debug!("API Response Body: {}", response_text);
 
     if !response_status.is_success() {
         match serde_json::from_str::<OpenAiErrorResponse>(&response_text) {
