@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 const PROMPT: &str = r#"
 1). When is the document dated (if any)?
-2). What is the document? Eg, invoice, receipt etc.
+2). What is the document? Eg, invoice, receipt, report etc.
 3). What should the document title be (if any)?
 4). What would be a good filename for this document, use the format {YYYYMMDD}-{title}-{category}.
 
