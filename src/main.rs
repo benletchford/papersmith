@@ -217,7 +217,6 @@ async fn get_document_intelligence(
         .and_then(|name| name.to_str())
         .unwrap_or("document.pdf");
 
-    // Retrieve API key from environment
     let api_key = env::var("PAPERSMITH_OPENAI_API_KEY")
         .map_err(|_| "PAPERSMITH_OPENAI_API_KEY environment variable not set")?;
 
