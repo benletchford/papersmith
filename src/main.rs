@@ -14,6 +14,7 @@ const PROMPT: &str = r#"
 2). What is the document? Eg, invoice, receipt, report etc.
 3). What should the document title be (if any)?
 4). What would be a good filename for this document, use the format {YYYYMMDD}-{title}-{category}.
+5). If it makes sense, take inspiration from the original filename ({original_filename}) to come up with a better title.
 
 Output your response as JSON, eg:
 {
@@ -222,6 +223,7 @@ async fn get_document_intelligence(
 
     let http_client = reqwest::Client::new();
 
+    let prompt_text = PROMPT.replace("{original_filename}", pdf_filename);
     let request_payload = CustomApiRequest {
         model,
         input: vec![InputItem {
@@ -234,7 +236,7 @@ async fn get_document_intelligence(
                 }),
                 ContentPart::Text(InputTextPart {
                     type_field: "input_text",
-                    text: PROMPT,
+                    text: &prompt_text,
                 }),
             ],
         }],
