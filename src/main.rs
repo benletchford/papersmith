@@ -71,16 +71,20 @@ struct CustomApiRequest<'a> {
 
 #[derive(Deserialize, Debug)]
 struct CustomApiResponse {
-    output: Option<Vec<OutputItem>>,
+    output: Option<Vec<ResponseOutputItem>>,
 }
 
 #[derive(Deserialize, Debug)]
-struct OutputItem {
-    content: Option<Vec<OutputContentPart>>,
+struct ResponseOutputItem {
+    #[serde(rename = "type")]
+    type_field: Option<String>,
+    content: Option<Vec<ResponseContentPart>>,
 }
 
 #[derive(Deserialize, Debug)]
-struct OutputContentPart {
+struct ResponseContentPart {
+    #[serde(rename = "type")]
+    type_field: Option<String>,
     text: Option<String>,
 }
 
@@ -103,7 +107,7 @@ struct OpenAiErrorResponse {
 struct Args {
     #[arg(short, long, default_value = "")]
     glob_pattern: String,
-    #[arg(short, long, default_value = "gpt-4o")]
+    #[arg(short, long, default_value = "gpt-5")]
     model: String,
     #[arg(short, long, action)]
     dry_run: bool,
@@ -310,22 +314,61 @@ async fn get_document_intelligence(
         )
     })?;
 
-    // Extract the text from the nested structure
-    let content_str = response
-        .output
-        .as_ref()
-        .and_then(|outputs| outputs.first())
-        .and_then(|first_output| first_output.content.as_ref())
-        .and_then(|contents| contents.first())
-        .and_then(|first_content| first_content.text.as_ref())
-        .cloned() // Clone the Option<String> to get String or None
-        .ok_or_else(|| {
-            error!(
-                "Failed to extract text from API response structure. Full response: {}",
-                response_text
-            );
-            "Failed to extract text from API response structure".to_string()
-        })?;
+    // Extract the text from the nested structure, supporting the Responses API schema
+    let extracted_text_from_outputs: Option<String> =
+        response.output.as_ref().and_then(|outputs| {
+            // Prefer the "message" item and its "output_text" parts
+            outputs
+                .iter()
+                .find_map(|item| {
+                    let is_message = item
+                        .type_field
+                        .as_deref()
+                        .map(|t| t == "message")
+                        .unwrap_or(false);
+
+                    item.content.as_ref().and_then(|parts| {
+                        // Prefer parts where type == "output_text"
+                        let preferred = parts.iter().find_map(|part| {
+                            let is_output_text = part
+                                .type_field
+                                .as_deref()
+                                .map(|t| t == "output_text")
+                                .unwrap_or(false);
+                            if is_output_text {
+                                part.text.clone()
+                            } else {
+                                None
+                            }
+                        });
+
+                        if preferred.is_some() {
+                            preferred
+                        } else if is_message {
+                            // Fallback: any text in a message item
+                            parts.iter().find_map(|p| p.text.clone())
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .or_else(|| {
+                    // Backward-compatible fallback: first -> content[0] -> text
+                    outputs
+                        .first()
+                        .and_then(|first_output| first_output.content.as_ref())
+                        .and_then(|contents| contents.first())
+                        .and_then(|first_content| first_content.text.clone())
+                })
+        });
+
+    let content_str = extracted_text_from_outputs.ok_or_else(|| {
+        error!(
+            "Failed to extract text from API response structure. Full response: {}",
+            response_text
+        );
+        "Failed to extract text from API response structure".to_string()
+    })?;
 
     let repaired_json_str = repair_json::repair(
         content_str
