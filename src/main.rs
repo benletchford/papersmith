@@ -377,16 +377,14 @@ async fn get_document_intelligence(
             .as_str(),
     )
     .map_err(|e_str| {
-        std::io::Error::new(
-            std::io::ErrorKind::Other,
+        std::io::Error::other(
             format!("JSON repair failed for {}: {}", pdf_path, e_str),
         )
     })?;
 
     let document_intelligence: DocumentIntelligence = serde_json::from_str(&repaired_json_str)
         .map_err(|e_serde| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
+            std::io::Error::other(
                 format!(
                     "Failed to parse JSON for {} ({}): {}. Repaired JSON: '{}'",
                     pdf_path, e_serde, content_str, repaired_json_str
