@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/benletchford/papersmith/compare/v0.5.0...v0.6.0) (2025-09-20)
+
+
+### Features
+
+* update dependencies ([f436c2c](https://github.com/benletchford/papersmith/commit/f436c2c901c5f18b213689341495338dbb230abc))
+
+
+### Bug Fixes
+
+* support gpt-5 ([16a4078](https://github.com/benletchford/papersmith/commit/16a4078de61c02d4a7a1f62d03758386720ac363))
+
 ## [0.5.0](https://github.com/benletchford/papersmith/compare/v0.4.0...v0.5.0) (2025-05-13)
 
 
