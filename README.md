@@ -12,16 +12,16 @@ No host-native Surya service, host-native Ollama service, GPU access, or cloud A
 
 ## Quick Start
 
-Create `.env`:
+By default, the stack watches:
+
+```text
+~/Library/Mobile Documents/com~apple~CloudDocs/docs
+```
+
+Create `.env` only if you want to override that folder:
 
 ```bash
 cp .env.example .env
-```
-
-Set the folder that should receive incoming PDFs:
-
-```env
-WATCH_DIR_HOST=/Users/you/Documents/incoming-pdfs
 ```
 
 Start everything:
@@ -30,17 +30,17 @@ Start everything:
 docker compose up --build
 ```
 
-On first run, Compose builds the watcher and Surya images, starts Docker Ollama, pulls the configured model into a Docker volume, and then starts watching `WATCH_DIR_HOST`.
+On first run, Compose builds the watcher and Surya images, starts Docker Ollama, pulls the configured model into a Docker volume, and then starts watching the configured folder.
 
 The watcher does not create sidecar folders or state files in the watched directory. It either renames a PDF or leaves it untouched and writes structured JSON logs to stdout. Look for `renamed`, `needs_review`, and `process_failed` events in `docker compose logs -f watcher`.
 
 ## Configuration
 
-Most users only need one setting:
+Most users do not need any settings:
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `WATCH_DIR_HOST` | yes | none | Absolute host folder mounted into Docker as `/watch` |
+| `WATCH_DIR_HOST` | no | `~/Library/Mobile Documents/com~apple~CloudDocs/docs` | Absolute host folder mounted into Docker as `/watch` |
 | `OLLAMA_MODEL` | no | `qwen3:4b` | Docker Ollama model used for naming |
 
 `qwen3:4b` is the default because it fits typical Docker Desktop memory limits. Larger models may work if Docker has enough RAM.

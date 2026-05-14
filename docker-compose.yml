@@ -8,7 +8,7 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
     volumes:
       - type: bind
-        source: ${WATCH_DIR_HOST:?Set WATCH_DIR_HOST in .env}
+        source: ${WATCH_DIR_HOST:-${HOME}/Library/Mobile Documents/com~apple~CloudDocs/docs}
         target: /watch
     depends_on:
       surya:
@@ -24,7 +24,7 @@ services:
       target: surya-service
     volumes:
       - type: bind
-        source: ${WATCH_DIR_HOST:?Set WATCH_DIR_HOST in .env}
+        source: ${WATCH_DIR_HOST:-${HOME}/Library/Mobile Documents/com~apple~CloudDocs/docs}
         target: /watch
         read_only: true
       - type: volume
