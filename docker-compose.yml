@@ -1,0 +1,72 @@
+services:
+  watcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: watcher
+    environment:
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+    volumes:
+      - type: bind
+        source: ${WATCH_DIR_HOST:?Set WATCH_DIR_HOST in .env}
+        target: /watch
+    depends_on:
+      surya:
+        condition: service_healthy
+      ollama-pull:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  surya:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: surya-service
+    volumes:
+      - type: bind
+        source: ${WATCH_DIR_HOST:?Set WATCH_DIR_HOST in .env}
+        target: /watch
+        read_only: true
+      - type: volume
+        source: surya-cache
+        target: /root/.cache
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8077/health', timeout=5).read()",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["ollama"]
+    command: ["pull", "${OLLAMA_MODEL:-qwen3:4b}"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  ollama:
+  surya-cache:

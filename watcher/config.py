@@ -1,0 +1,51 @@
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+
+DOCKER_WATCH_DIR = Path("/watch")
+DOCKER_SURYA_OCR_URL = "http://surya:8077/ocr"
+DOCKER_SURYA_HEALTHCHECK_URL = "http://surya:8077/health"
+DOCKER_OLLAMA_URL = "http://ollama:11434"
+DEFAULT_OLLAMA_MODEL = "qwen3:4b"
+POLL_SECONDS = 5
+PDF_STABLE_SECONDS = 10
+MIN_RENAME_CONFIDENCE = 0.72
+
+
+def bool_env(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+@dataclass(frozen=True)
+class Config:
+    watch_dir_container: Path
+    surya_service_url: str
+    surya_health_url: str
+    ollama_base_url: str
+    ollama_model: str
+    dry_run: bool
+    poll_interval_seconds: float
+    stable_seconds: float
+    auto_rename_min_confidence: float
+    log_level: str
+
+
+def load_config() -> Config:
+    return Config(
+        watch_dir_container=DOCKER_WATCH_DIR,
+        surya_service_url=DOCKER_SURYA_OCR_URL,
+        surya_health_url=DOCKER_SURYA_HEALTHCHECK_URL,
+        ollama_base_url=DOCKER_OLLAMA_URL,
+        ollama_model=os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL),
+        dry_run=bool_env("DRY_RUN", False),
+        poll_interval_seconds=POLL_SECONDS,
+        stable_seconds=PDF_STABLE_SECONDS,
+        auto_rename_min_confidence=MIN_RENAME_CONFIDENCE,
+        log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    )
