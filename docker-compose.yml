@@ -1,3 +1,5 @@
+name: docker-pdf-autonamer
+
 services:
   watcher:
     build:

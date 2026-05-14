@@ -1,110 +1,79 @@
-# local-pdf-ocr-renamer
+# docker-pdf-autonamer
 
-Docker-only local PDF OCR renamer.
+Docker-only PDF autonamer.
 
-The stack watches a local folder, OCRs PDFs with Surya, asks a Docker Ollama model for evidence-backed metadata, and renames files to:
+It watches a folder, OCRs PDFs with Surya, asks Docker Ollama for a filename, and renames PDFs to:
 
 ```text
 YYYYMMDD-title.pdf
 ```
 
-No host-native Surya service, host-native Ollama service, GPU access, or cloud API is required. The tradeoff is speed: first startup, OCR, and inference are all slower inside Docker Desktop.
+It does not create sidecar folders in the watched directory. If a PDF cannot be renamed confidently, it is left in place and the reason is logged to stdout.
 
-## Quick Start
+## Run
 
-By default, the stack watches:
+Default watched folder:
 
 ```text
 ~/Library/Mobile Documents/com~apple~CloudDocs/docs
 ```
 
-Create `.env` only if you want to override that folder:
-
-```bash
-cp .env.example .env
-```
-
-Start everything:
+Start the stack:
 
 ```bash
 docker compose up --build
 ```
 
-On first run, Compose builds the watcher and Surya images, starts Docker Ollama, pulls the configured model into a Docker volume, and then starts watching the configured folder.
+Watch logs:
 
-The watcher does not create sidecar folders or state files in the watched directory. It either renames a PDF or leaves it untouched and writes structured JSON logs to stdout. Look for `renamed`, `needs_review`, and `process_failed` events in `docker compose logs -f watcher`.
+```bash
+docker compose logs -f watcher
+```
 
-## Configuration
+Useful watcher events:
 
-Most users do not need any settings:
+```text
+renamed
+needs_review
+process_failed
+```
 
-| Variable | Required | Default | Purpose |
-| --- | --- | --- | --- |
-| `WATCH_DIR_HOST` | no | `~/Library/Mobile Documents/com~apple~CloudDocs/docs` | Absolute host folder mounted into Docker as `/watch` |
-| `OLLAMA_MODEL` | no | `qwen3:4b` | Docker Ollama model used for naming |
+## Options
 
-`qwen3:4b` is the default because it fits typical Docker Desktop memory limits. Larger models may work if Docker has enough RAM.
+No config is required for the default setup.
 
-## One-PDF Test Mode
+To watch a different folder, create `.env`:
 
-Process one PDF and exit:
+```bash
+cp .env.example .env
+```
+
+Then set:
+
+```env
+WATCH_DIR_HOST=/absolute/path/to/pdfs
+```
+
+The default model is `qwen3:4b`, which fits typical Docker Desktop memory limits. To use another model:
+
+```env
+OLLAMA_MODEL=qwen3:1.7b
+```
+
+## One File
+
+Process one PDF mounted inside Docker at `/watch`:
 
 ```bash
 docker compose run --rm watcher --once /watch/example.pdf
 ```
 
-Run the same path without renaming:
+Dry run:
 
 ```bash
 docker compose run --rm -e DRY_RUN=true watcher --once /watch/example.pdf
 ```
 
-## Useful Commands
+## Notes
 
-Check service status:
-
-```bash
-docker compose ps
-docker compose run --rm watcher --healthcheck
-```
-
-Inspect logs:
-
-```bash
-docker compose logs -f watcher surya ollama
-```
-
-Pull or refresh the configured model:
-
-```bash
-docker compose run --rm ollama-pull
-```
-
-Use a different model for one command:
-
-```bash
-OLLAMA_MODEL=qwen3:1.7b docker compose up --build
-```
-
-## Project Layout
-
-```text
-Dockerfile              Multi-stage watcher and Surya images
-docker-compose.yml      Docker-only runtime stack
-watcher/                Folder polling, OCR orchestration, naming, renaming
-surya_service/          Small FastAPI wrapper around surya_ocr
-```
-
-## Troubleshooting
-
-If Docker cannot mount the watch folder, make sure `WATCH_DIR_HOST` is an absolute path and is allowed by Docker Desktop file sharing.
-
-If Ollama fails to load a model, use a smaller model or increase Docker Desktop memory. The previous `qwen3:14b` default was too large for the tested Docker Desktop limit.
-
-If Surya fails, inspect:
-
-```bash
-docker compose logs -f surya
-```
-
-First OCR after a fresh build can be slow while Surya downloads and warms model weights.
+Everything runs in Docker: watcher, OCR, and Ollama. This is tidy but slower than host-native GPU/MPS OCR or inference.
