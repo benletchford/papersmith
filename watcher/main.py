@@ -4,6 +4,7 @@ import argparse
 import logging
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,12 @@ from watcher.ollama import infer_name
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ProcessResult:
+    status: str
+    target: Path | None = None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -93,16 +100,51 @@ def check_services(config: Config) -> None:
 
 def poll_forever(config: Config) -> None:
     attempted: set[tuple[str, int, int]] = set()
+    failure_counts: dict[tuple[str, int, int], int] = {}
+    retry_after: dict[tuple[str, int, int], float] = {}
     while True:
         try:
+            now = time.time()
             for pdf in find_candidate_pdfs(config.watch_dir_container):
                 if not is_stable(pdf, config.stable_seconds):
                     continue
                 fingerprint = file_fingerprint(pdf)
                 if fingerprint in attempted:
                     continue
-                process_one(pdf, config)
+                if now < retry_after.get(fingerprint, 0):
+                    continue
+
+                result = process_one(pdf, config)
+                if result.status == "failed":
+                    attempts = failure_counts.get(fingerprint, 0) + 1
+                    failure_counts[fingerprint] = attempts
+                    if attempts >= config.max_process_attempts:
+                        attempted.add(fingerprint)
+                        logger.warning(
+                            "skip_failed_retry_limit",
+                            extra=extra(
+                                path=str(pdf),
+                                attempts=attempts,
+                                max_attempts=config.max_process_attempts,
+                            ),
+                        )
+                    else:
+                        retry_at = time.time() + config.failed_retry_delay_seconds
+                        retry_after[fingerprint] = retry_at
+                        logger.warning(
+                            "retry_scheduled",
+                            extra=extra(
+                                path=str(pdf),
+                                attempts=attempts,
+                                max_attempts=config.max_process_attempts,
+                                retry_delay_seconds=config.failed_retry_delay_seconds,
+                            ),
+                        )
+                    continue
+
                 attempted.add(fingerprint)
+                failure_counts.pop(fingerprint, None)
+                retry_after.pop(fingerprint, None)
         except Exception:
             logger.exception("poll_cycle_failed")
         time.sleep(config.poll_interval_seconds)
@@ -134,11 +176,11 @@ def file_fingerprint(path: Path) -> tuple[str, int, int]:
     return (str(path), stat.st_size, stat.st_mtime_ns)
 
 
-def process_one(path: Path, config: Config) -> Path | None:
+def process_one(path: Path, config: Config) -> ProcessResult:
     container_path = normalize_container_path(path, config)
     if is_already_renamed(container_path):
         logger.info("skip_already_renamed", extra=extra(path=str(container_path)))
-        return None
+        return ProcessResult("skipped_already_renamed")
 
     try:
         mtime = container_path.stat().st_mtime
@@ -172,7 +214,7 @@ def process_one(path: Path, config: Config) -> Path | None:
                 "review_reasons": decision.reasons,
             }
             logger.warning("needs_review", extra=extra(**event))
-            return None
+            return ProcessResult("needs_review")
 
         final_name = build_filename(decision.date, decision.title_slug or "document")
         target = safe_collision_path(container_path.with_name(final_name))
@@ -193,11 +235,11 @@ def process_one(path: Path, config: Config) -> Path | None:
 
         if config.dry_run:
             logger.info("dry_run_rename", extra=extra(**event))
-            return target
+            return ProcessResult("dry_run", target)
 
         container_path.rename(target)
         logger.info("renamed", extra=extra(**event))
-        return target
+        return ProcessResult("renamed", target)
     except Exception as exc:
         logger.exception(
             "process_failed",
@@ -208,7 +250,7 @@ def process_one(path: Path, config: Config) -> Path | None:
                 error=str(exc),
             ),
         )
-        return None
+        return ProcessResult("failed")
 
 
 def normalize_container_path(path: Path, config: Config) -> Path:

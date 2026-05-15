@@ -13,6 +13,8 @@ DEFAULT_OLLAMA_MODEL = "qwen3:4b"
 POLL_SECONDS = 5
 PDF_STABLE_SECONDS = 10
 MIN_RENAME_CONFIDENCE = 0.72
+MAX_PROCESS_ATTEMPTS = 3
+FAILED_RETRY_DELAY_SECONDS = 300
 
 
 def bool_env(name: str, default: bool = False) -> bool:
@@ -20,6 +22,26 @@ def bool_env(name: str, default: bool = False) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def int_env(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def float_env(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
 
 
 @dataclass(frozen=True)
@@ -33,6 +55,8 @@ class Config:
     poll_interval_seconds: float
     stable_seconds: float
     auto_rename_min_confidence: float
+    max_process_attempts: int
+    failed_retry_delay_seconds: float
     log_level: str
 
 
@@ -47,5 +71,7 @@ def load_config() -> Config:
         poll_interval_seconds=POLL_SECONDS,
         stable_seconds=PDF_STABLE_SECONDS,
         auto_rename_min_confidence=MIN_RENAME_CONFIDENCE,
+        max_process_attempts=max(1, int_env("MAX_PROCESS_ATTEMPTS", MAX_PROCESS_ATTEMPTS)),
+        failed_retry_delay_seconds=max(0.0, float_env("FAILED_RETRY_DELAY_SECONDS", FAILED_RETRY_DELAY_SECONDS)),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
     )

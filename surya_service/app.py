@@ -15,6 +15,20 @@ from pydantic import BaseModel, Field
 
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
+
+def int_env(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+RENDERED_FALLBACK_MAX_DIMENSION = max(400, int_env("SURYA_RENDERED_FALLBACK_MAX_DIMENSION", 1600))
+DIRECT_OCR_MAX_PAGE_DIMENSION_POINTS = max(0, int_env("SURYA_DIRECT_OCR_MAX_PAGE_DIMENSION_POINTS", 1600))
 logging.basicConfig(
     level=LOG_LEVEL,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -40,6 +54,8 @@ def health() -> dict[str, Any]:
     return {
         "ok": executable is not None,
         "surya_ocr": executable,
+        "rendered_fallback_max_dimension": RENDERED_FALLBACK_MAX_DIMENSION,
+        "direct_ocr_max_page_dimension_points": DIRECT_OCR_MAX_PAGE_DIMENSION_POINTS,
     }
 
 
@@ -88,6 +104,9 @@ def run_surya(pdf_path: Path) -> OcrResponse:
     if executable is None:
         raise RuntimeError("surya_ocr executable not found in the OCR container.")
 
+    if should_use_rendered_fallback_first(pdf_path):
+        return run_surya_rendered_fallback(executable, pdf_path)
+
     with tempfile.TemporaryDirectory(prefix="surya-ocr-") as tmp_dir:
         output_dir = Path(tmp_dir)
         completed = run_surya_command(executable, pdf_path, output_dir)
@@ -108,6 +127,35 @@ def run_surya(pdf_path: Path) -> OcrResponse:
 
         logger.debug("surya_stdout=%s", completed.stdout)
         return parse_surya_output(output_dir, source_path=pdf_path)
+
+
+def should_use_rendered_fallback_first(pdf_path: Path) -> bool:
+    if DIRECT_OCR_MAX_PAGE_DIMENSION_POINTS <= 0:
+        return False
+
+    try:
+        import pypdfium2 as pdfium
+
+        pdf = pdfium.PdfDocument(str(pdf_path))
+        for index in range(len(pdf)):
+            page = pdf[index]
+            width, height = page.get_size()
+            max_dimension = max(width, height)
+            if max_dimension > DIRECT_OCR_MAX_PAGE_DIMENSION_POINTS:
+                logger.warning(
+                    "surya_direct_skipped_large_page container_path=%s page=%s points=%sx%s "
+                    "max_dimension=%.1f threshold=%s",
+                    pdf_path,
+                    index + 1,
+                    width,
+                    height,
+                    max_dimension,
+                    DIRECT_OCR_MAX_PAGE_DIMENSION_POINTS,
+                )
+                return True
+    except Exception:
+        logger.warning("surya_large_page_probe_failed container_path=%s", pdf_path, exc_info=True)
+    return False
 
 
 def run_surya_command(executable: str, input_path: Path, output_dir: Path) -> subprocess.CompletedProcess[str]:
@@ -140,18 +188,19 @@ def run_surya_rendered_fallback(executable: str, pdf_path: Path) -> OcrResponse:
         for index in range(len(pdf)):
             page = pdf[index]
             width, height = page.get_size()
-            scale = min(1.0, 2600 / max(width, height))
+            scale = min(1.0, RENDERED_FALLBACK_MAX_DIMENSION / max(width, height))
             image = page.render(scale=scale).to_pil().convert("RGB")
             image_path = image_dir / f"page-{index + 1:04d}.jpg"
             image.save(image_path, quality=90)
             logger.info(
-                "surya_rendered_page page=%s points=%sx%s pixels=%sx%s scale=%.3f",
+                "surya_rendered_page page=%s points=%sx%s pixels=%sx%s scale=%.3f max_dimension=%s",
                 index + 1,
                 width,
                 height,
                 image.width,
                 image.height,
                 scale,
+                RENDERED_FALLBACK_MAX_DIMENSION,
             )
 
             page_output_dir = work_dir / f"page-{index + 1:04d}-ocr"

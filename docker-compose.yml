@@ -8,6 +8,8 @@ services:
       target: watcher
     environment:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+      MAX_PROCESS_ATTEMPTS: ${MAX_PROCESS_ATTEMPTS:-3}
+      FAILED_RETRY_DELAY_SECONDS: ${FAILED_RETRY_DELAY_SECONDS:-300}
     volumes:
       - type: bind
         source: ${WATCH_DIR_HOST:-${HOME}/Library/Mobile Documents/com~apple~CloudDocs/docs}
@@ -32,6 +34,9 @@ services:
       - type: volume
         source: surya-cache
         target: /root/.cache
+    environment:
+      SURYA_RENDERED_FALLBACK_MAX_DIMENSION: ${SURYA_RENDERED_FALLBACK_MAX_DIMENSION:-1600}
+      SURYA_DIRECT_OCR_MAX_PAGE_DIMENSION_POINTS: ${SURYA_DIRECT_OCR_MAX_PAGE_DIMENSION_POINTS:-1600}
     healthcheck:
       test:
         [

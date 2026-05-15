@@ -36,6 +36,8 @@ Useful watcher events:
 renamed
 needs_review
 process_failed
+retry_scheduled
+skip_failed_retry_limit
 ```
 
 ## Options
@@ -52,6 +54,15 @@ Then set:
 
 ```env
 WATCH_DIR_HOST=/absolute/path/to/pdfs
+```
+
+Failed OCR attempts are retried rather than suppressed permanently. The defaults are:
+
+```env
+MAX_PROCESS_ATTEMPTS=3
+FAILED_RETRY_DELAY_SECONDS=300
+SURYA_RENDERED_FALLBACK_MAX_DIMENSION=1600
+SURYA_DIRECT_OCR_MAX_PAGE_DIMENSION_POINTS=1600
 ```
 
 The default model is `qwen3:4b`, which fits typical Docker Desktop memory limits. To use another model:
