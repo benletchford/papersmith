@@ -56,6 +56,7 @@ def main(argv: list[str] | None = None) -> int:
             watch_dir_container=str(config.watch_dir_container),
             dry_run=config.dry_run,
             poll_interval_seconds=config.poll_interval_seconds,
+            ocr_max_pages=config.ocr_max_pages,
         ),
     )
     check_services(config)
@@ -205,6 +206,7 @@ def process_one(path: Path, config: Config) -> ProcessResult:
                 "status": "needs_review",
                 "source_container_path": str(container_path),
                 "ocr_pages": ocr.get("pages"),
+                "ocr_total_pages": ocr.get("total_pages"),
                 "ocr_chars": len(ocr.get("text", "")),
                 "confidence_optional": ocr.get("confidence_optional"),
                 "ollama": inferred,
@@ -224,6 +226,7 @@ def process_one(path: Path, config: Config) -> ProcessResult:
             "source_container_path": str(container_path),
             "target_container_path": str(target),
             "ocr_pages": ocr.get("pages"),
+            "ocr_total_pages": ocr.get("total_pages"),
             "ocr_chars": len(ocr.get("text", "")),
             "confidence_optional": ocr.get("confidence_optional"),
             "ollama": inferred,
@@ -272,6 +275,7 @@ def is_relative_to(path: Path, root: Path) -> bool:
 def call_surya(*, container_path: Path, config: Config) -> dict[str, Any]:
     payload = {
         "container_path": str(container_path),
+        "max_pages": config.ocr_max_pages,
     }
     logger.info("surya_request", extra=extra(**payload))
     response = requests.post(config.surya_service_url, json=payload, timeout=900)

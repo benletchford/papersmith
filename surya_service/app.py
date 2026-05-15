@@ -40,11 +40,17 @@ app = FastAPI(title="Docker Surya OCR Service", version="1.0.0")
 
 class OcrRequest(BaseModel):
     container_path: str = Field(..., description="Absolute path to the PDF inside Docker")
+    max_pages: int | None = Field(
+        default=None,
+        ge=0,
+        description="Maximum number of leading PDF pages to OCR. 0 or null means all pages.",
+    )
 
 
 class OcrResponse(BaseModel):
     text: str
     pages: int
+    total_pages: int | None = None
     confidence_optional: float | None = None
 
 
@@ -63,7 +69,8 @@ def health() -> dict[str, Any]:
 def ocr(request: OcrRequest) -> OcrResponse:
     started = time.time()
     pdf_path = Path(request.container_path).expanduser().resolve()
-    logger.info("ocr_request container_path=%s", pdf_path)
+    max_pages = normalized_max_pages(request.max_pages)
+    logger.info("ocr_request container_path=%s max_pages=%s", pdf_path, max_pages)
 
     if not pdf_path.exists():
         raise HTTPException(
@@ -76,11 +83,12 @@ def ocr(request: OcrRequest) -> OcrResponse:
         raise HTTPException(status_code=400, detail=f"container_path is not a PDF: {pdf_path}")
 
     try:
-        response = run_surya(pdf_path)
+        response = run_surya(pdf_path, max_pages=max_pages)
         logger.info(
-            "ocr_success container_path=%s pages=%s chars=%s duration_seconds=%.2f",
+            "ocr_success container_path=%s pages=%s total_pages=%s chars=%s duration_seconds=%.2f",
             pdf_path,
             response.pages,
+            response.total_pages,
             len(response.text),
             time.time() - started,
         )
@@ -99,10 +107,20 @@ def ocr(request: OcrRequest) -> OcrResponse:
         ) from exc
 
 
-def run_surya(pdf_path: Path) -> OcrResponse:
+def normalized_max_pages(value: int | None) -> int | None:
+    if value is None or value <= 0:
+        return None
+    return value
+
+
+def run_surya(pdf_path: Path, *, max_pages: int | None = None) -> OcrResponse:
     executable = shutil.which("surya_ocr")
     if executable is None:
         raise RuntimeError("surya_ocr executable not found in the OCR container.")
+
+    if max_pages is not None:
+        logger.info("surya_page_limit_enabled container_path=%s max_pages=%s", pdf_path, max_pages)
+        return run_surya_rendered_fallback(executable, pdf_path, max_pages=max_pages)
 
     if should_use_rendered_fallback_first(pdf_path):
         return run_surya_rendered_fallback(executable, pdf_path)
@@ -119,7 +137,7 @@ def run_surya(pdf_path: Path) -> OcrResponse:
             )
             if completed.returncode == -9:
                 logger.warning("surya_low_memory_retry container_path=%s", pdf_path)
-                return run_surya_rendered_fallback(executable, pdf_path)
+                return run_surya_rendered_fallback(executable, pdf_path, max_pages=max_pages)
             raise RuntimeError(
                 "surya_ocr failed "
                 f"with exit code {completed.returncode}: {completed.stderr[-4000:]}"
@@ -175,7 +193,12 @@ def run_surya_command(executable: str, input_path: Path, output_dir: Path) -> su
     )
 
 
-def run_surya_rendered_fallback(executable: str, pdf_path: Path) -> OcrResponse:
+def run_surya_rendered_fallback(
+    executable: str,
+    pdf_path: Path,
+    *,
+    max_pages: int | None = None,
+) -> OcrResponse:
     import pypdfium2 as pdfium
 
     with tempfile.TemporaryDirectory(prefix="surya-rendered-") as tmp_dir:
@@ -183,9 +206,20 @@ def run_surya_rendered_fallback(executable: str, pdf_path: Path) -> OcrResponse:
         image_dir = work_dir / "images"
         image_dir.mkdir()
         pdf = pdfium.PdfDocument(str(pdf_path))
+        total_pages = len(pdf)
+        if total_pages <= 0:
+            raise RuntimeError(f"PDF has no pages: {pdf_path}")
+        pages_to_process = min(total_pages, max_pages) if max_pages is not None else total_pages
+        logger.info(
+            "surya_rendered_start container_path=%s pages_to_process=%s total_pages=%s max_pages=%s",
+            pdf_path,
+            pages_to_process,
+            total_pages,
+            max_pages,
+        )
         responses: list[OcrResponse] = []
 
-        for index in range(len(pdf)):
+        for index in range(pages_to_process):
             page = pdf[index]
             width, height = page.get_size()
             scale = min(1.0, RENDERED_FALLBACK_MAX_DIMENSION / max(width, height))
@@ -227,7 +261,12 @@ def run_surya_rendered_fallback(executable: str, pdf_path: Path) -> OcrResponse:
             if response.confidence_optional is not None
         ]
         confidence = sum(confidences) / len(confidences) if confidences else None
-        return OcrResponse(text=text, pages=len(pdf), confidence_optional=confidence)
+        return OcrResponse(
+            text=text,
+            pages=pages_to_process,
+            total_pages=total_pages,
+            confidence_optional=confidence,
+        )
 
 
 def parse_surya_output(output_dir: Path, *, source_path: Path) -> OcrResponse:

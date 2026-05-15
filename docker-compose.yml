@@ -8,6 +8,7 @@ services:
       target: watcher
     environment:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+      OCR_MAX_PAGES: ${OCR_MAX_PAGES:-3}
       MAX_PROCESS_ATTEMPTS: ${MAX_PROCESS_ATTEMPTS:-3}
       FAILED_RETRY_DELAY_SECONDS: ${FAILED_RETRY_DELAY_SECONDS:-300}
     volumes:

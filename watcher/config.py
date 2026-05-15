@@ -15,6 +15,7 @@ PDF_STABLE_SECONDS = 10
 MIN_RENAME_CONFIDENCE = 0.72
 MAX_PROCESS_ATTEMPTS = 3
 FAILED_RETRY_DELAY_SECONDS = 300
+DEFAULT_OCR_MAX_PAGES = 3
 
 
 def bool_env(name: str, default: bool = False) -> bool:
@@ -57,6 +58,7 @@ class Config:
     auto_rename_min_confidence: float
     max_process_attempts: int
     failed_retry_delay_seconds: float
+    ocr_max_pages: int
     log_level: str
 
 
@@ -73,5 +75,6 @@ def load_config() -> Config:
         auto_rename_min_confidence=MIN_RENAME_CONFIDENCE,
         max_process_attempts=max(1, int_env("MAX_PROCESS_ATTEMPTS", MAX_PROCESS_ATTEMPTS)),
         failed_retry_delay_seconds=max(0.0, float_env("FAILED_RETRY_DELAY_SECONDS", FAILED_RETRY_DELAY_SECONDS)),
+        ocr_max_pages=max(0, int_env("OCR_MAX_PAGES", DEFAULT_OCR_MAX_PAGES)),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
     )
