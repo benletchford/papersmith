@@ -63,7 +63,13 @@ MAX_PROCESS_ATTEMPTS=3
 FAILED_RETRY_DELAY_SECONDS=300
 SURYA_RENDERED_FALLBACK_MAX_DIMENSION=1600
 SURYA_DIRECT_OCR_MAX_PAGE_DIMENSION_POINTS=1600
+SURYA_MEM_LIMIT=8g
+SURYA_MEMSWAP_LIMIT=12g
 ```
+
+`SURYA_MEMSWAP_LIMIT` is Docker's total memory plus swap allowance for the
+Surya container, not swap alone. Docker Desktop must also have enough memory
+and swap enabled in its resource settings for this to help.
 
 The default model is `qwen3:4b`, which fits typical Docker Desktop memory limits. To use another model:
 

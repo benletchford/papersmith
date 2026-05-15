@@ -26,6 +26,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: surya-service
+    mem_limit: ${SURYA_MEM_LIMIT:-8g}
+    memswap_limit: ${SURYA_MEMSWAP_LIMIT:-12g}
     volumes:
       - type: bind
         source: ${WATCH_DIR_HOST:-${HOME}/Library/Mobile Documents/com~apple~CloudDocs/docs}
