@@ -1,4 +1,4 @@
-# docker-pdf-autonamer
+# papersmith
 
 Docker-only PDF autonamer.
 
