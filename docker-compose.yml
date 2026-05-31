@@ -1,4 +1,4 @@
-name: docker-pdf-autonamer
+name: papersmith
 
 services:
   watcher:
