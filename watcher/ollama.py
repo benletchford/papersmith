@@ -21,7 +21,7 @@ def infer_name(
     text: str,
     fallback_date: str,
     source_path: Path,
-    timeout_seconds: int = 600,
+    timeout_seconds: int,
 ) -> dict[str, Any]:
     prompt = build_prompt(text=text, fallback_date=fallback_date, source_path=source_path)
     payload = {

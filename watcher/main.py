@@ -57,6 +57,8 @@ def main(argv: list[str] | None = None) -> int:
             dry_run=config.dry_run,
             poll_interval_seconds=config.poll_interval_seconds,
             ocr_max_pages=config.ocr_max_pages,
+            surya_timeout_seconds=config.surya_timeout_seconds,
+            ollama_timeout_seconds=config.ollama_timeout_seconds,
         ),
     )
     check_services(config)
@@ -193,6 +195,7 @@ def process_one(path: Path, config: Config) -> ProcessResult:
             text=clean_ocr_text_for_llm(ocr["text"]),
             fallback_date=fallback_date,
             source_path=container_path,
+            timeout_seconds=config.ollama_timeout_seconds,
         )
         decision = decide_filename(
             ocr_text=ocr["text"],
@@ -278,7 +281,7 @@ def call_surya(*, container_path: Path, config: Config) -> dict[str, Any]:
         "max_pages": config.ocr_max_pages,
     }
     logger.info("surya_request", extra=extra(**payload))
-    response = requests.post(config.surya_service_url, json=payload, timeout=900)
+    response = requests.post(config.surya_service_url, json=payload, timeout=config.surya_timeout_seconds)
     if not response.ok:
         raise RuntimeError(f"Surya service error {response.status_code}: {response.text[:4000]}")
     data = response.json()

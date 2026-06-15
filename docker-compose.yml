@@ -9,6 +9,8 @@ services:
     environment:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
       OCR_MAX_PAGES: ${OCR_MAX_PAGES:-3}
+      SURYA_TIMEOUT_SECONDS: ${SURYA_TIMEOUT_SECONDS:-1200}
+      OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-1200}
       MAX_PROCESS_ATTEMPTS: ${MAX_PROCESS_ATTEMPTS:-3}
       FAILED_RETRY_DELAY_SECONDS: ${FAILED_RETRY_DELAY_SECONDS:-300}
     volumes:
@@ -28,7 +30,7 @@ services:
       dockerfile: Dockerfile
       target: surya-service
     mem_limit: ${SURYA_MEM_LIMIT:-8g}
-    memswap_limit: ${SURYA_MEMSWAP_LIMIT:-12g}
+    memswap_limit: ${SURYA_MEMSWAP_LIMIT:-20g}
     volumes:
       - type: bind
         source: ${WATCH_DIR_HOST:-${HOME}/Library/Mobile Documents/com~apple~CloudDocs/docs}
